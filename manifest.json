@@ -1,0 +1,9 @@
+{
+  "id": "jii-panel",
+  "name": "Jii Panel",
+  "version": "1.0.0",
+  "minAppVersion": "1.5.0",
+  "description": "Jii (GM) front door: request help, send notes into the system, team status, and secure token intake. Install via BRAT.",
+  "author": "peachtukta1014",
+  "isDesktopOnly": false
+}
