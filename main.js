@@ -12,6 +12,7 @@ const VIEW_TYPE_JII_PANEL = "jii-panel-view";
 const DEFAULT_SETTINGS = {
   ingestUrl: "https://asia-southeast1-chincha-eeed6.cloudfunctions.net/hqWebhookIngest",
   ingestToken: "",
+  statusUrl: "https://asia-southeast1-chincha-eeed6.cloudfunctions.net/proxyToVm/api/health",
   hubFolder: "Jii Hub",
 };
 
@@ -82,6 +83,28 @@ class TokenIntakeModal extends Modal {
   onClose() { this.contentEl.empty(); }
 }
 
+/* ---------- Modal: ยืนยันก่อนทำ (confirm) ---------- */
+class ConfirmModal extends Modal {
+  constructor(plugin, message, onYes) {
+    super(plugin.app);
+    this.plugin = plugin;
+    this.message = message;
+    this.onYes = onYes;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h3", { text: "ยืนยันก่อนนะคะ" });
+    const p = contentEl.createEl("p", { text: this.message });
+    p.style.whiteSpace = "pre-wrap";
+    const row = contentEl.createDiv({ cls: "modal-button-container", attr: { style: "margin-top:10px;text-align:right" } });
+    const no = row.createEl("button", { text: "ยกเลิก" });
+    no.onclick = () => this.close();
+    const yes = row.createEl("button", { text: "ยืนยัน", cls: "mod-warning" });
+    yes.onclick = () => { this.close(); this.onYes(); };
+  }
+  onClose() { this.contentEl.empty(); }
+}
+
 /* ---------- แผงหลัก ---------- */
 class JiiPanelView extends ItemView {
   constructor(leaf, plugin) {
@@ -137,6 +160,24 @@ class JiiPanelView extends ItemView {
       }).open();
     });
 
+    btn("สถานะทีมแบบ live 📡", "mod-cta", async () => {
+      setStatus("กำลังถามสถานะจากระบบกลาง...");
+      try {
+        const res = await requestUrl({ url: this.plugin.settings.statusUrl, method: "GET" });
+        const d = res.json;
+        setStatus(`VM ${d.service} ${d.status} ✅ · เลน ${d.lanes.join(",")} · ws ${d.ws ? "ok" : "x"} · firestore ${d.firestore ? "ok" : "x"} · ${d.ts}`);
+      } catch (e) { setStatus("ตรวจสถานะไม่สำเร็จ ❌ " + e.message); }
+    });
+
+    btn("ส่งขึ้น Google Drive ☁️ (กดส่งเอง)", "", async () => {
+      new ConfirmModal(this.plugin, "ส่ง vault ขึ้น Google Drive ตอนนี้เลยไหม?\n(กฎของเรา: ไหลขึ้นเมื่อพี่กดส่งเองเท่านั้น — จี้จะรัน push ให้ทันทีที่เห็น)", async () => {
+        setStatus("ส่งคำขอ push ขึ้น Drive ให้จี้แล้ว — จี้จะรันและรายงานกลับ");
+        try {
+          await this.plugin.sendEvent("push_to_drive", { ordered_by: "peach_panel_button" });
+        } catch (e) { setStatus("ส่งไม่สำเร็จ ❌ " + e.message); }
+      }).open();
+    });
+
     btn("เปิดหมายเหตุทีม (Team Notes) 📋", "", async () => {
       const folder = this.plugin.settings.hubFolder || "Jii Hub";
       const path = `${folder}/Team Status.md`;
@@ -170,6 +211,10 @@ class JiiPanelSettingTab extends PluginSettingTab {
       .setName("Ingest Token (ถ้ามี)")
       .setDesc("ใช้เมื่อระบบกลางเปิดโหมดต้องพิสูจน์ตัวตน — เว้นว่างไว้ถ้ายังไม่ได้ตั้ง")
       .addText((t) => { t.inputEl.type = "password"; t.setValue(this.plugin.settings.ingestToken).onChange(async (v) => { this.plugin.settings.ingestToken = v.trim(); await this.plugin.saveSettings(); }); });
+    new Setting(containerEl)
+      .setName("Status URL (สถานะ live)")
+      .setDesc("ที่อยู่ตรวจสุขภาพระบบกลาง — แตะไว้ให้จี้ตั้งค่า")
+      .addText((t) => { t.setValue(this.plugin.settings.statusUrl).onChange(async (v) => { this.plugin.settings.statusUrl = v.trim(); await this.plugin.saveSettings(); }); });
     new Setting(containerEl)
       .setName("โฟลเดอร์หน้าบ้าน")
       .setDesc("โฟลเดอร์ใน vault สำหรับหมายเหตุทีม")
